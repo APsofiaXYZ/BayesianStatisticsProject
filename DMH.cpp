@@ -164,7 +164,7 @@ Rcpp::List DMH(NumericVector omega,
       for (s = 0; s < n; s++){
         zstar(s) = z(s);}
       
-      omega_star(q) = ::rnorm(1, omega(q),tau2) (0); 
+      omega_star(q) = Rcpp::rnorm(1, omega(q),tau2) (0); 
       
       
       // generate vector z* with conditional (5), M times gibbs sampler
@@ -217,7 +217,7 @@ Rcpp::List DMH(NumericVector omega,
           for (s = 0; s < n; s++){
             zstar(s) = z(s);}
           
-          theta_star(q,qq) = ::rnorm(1, theta(q,qq), tau2) (0); 
+          theta_star(q,qq) = Rcpp::rnorm(1, theta(q,qq), tau2) (0); 
           
           // generate set z* with conditional eq (5), M times gibbs sampler
           for (k = 0; k < m; k++) {
