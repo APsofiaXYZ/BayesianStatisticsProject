@@ -62,7 +62,7 @@ arma::vec conditionalZi_CPP(NumericVector z, NumericVector x, NumericVector y,
     for (qq = 0; qq < Q; qq++)  {          // q' 
       sum_ii = 0;
       for (ii = 0; ii < n; ii++) {         // i' 
-        if ((dmatrix(iii,ii) <= c) && ((iii) != ii)) 
+        if ((dmatrix(iii,ii) <= c) && (dmatrix(iii,ii) > 0) && ((iii) != ii)) 
         {
           e = exp(-lambda*dmatrix(iii,ii));
           sum_ii = sum_ii + e*Indicator_CPP(z(ii),qq+1);
