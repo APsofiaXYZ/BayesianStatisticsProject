@@ -205,19 +205,19 @@ Rcpp::List DMH(NumericVector omega,
     // propose new theta -> theta_star matrix by elements  
     
     for (q = 0; q < Q-1; q++)  {                     // could be Q, but we add dfs
-      for (qq = 0; qq < Q; qq++) {
-        
-        if (q<=qq) {
-          for (s = 0; s < Q; s++){
-            for (f = 0; f < Q; f++){
+      for (qq = q; qq < Q; qq++) {
+             
+          for (s = 0; s < Q; s++)   {
+            for (f = 0; f < Q; f++) {
               theta_star(s,f) = theta(s,f); 
-              theta_star(f,s) = theta(f,s);}
-          }
+              }
+              }
           
           for (s = 0; s < n; s++){
             zstar(s) = z(s);}
           
           theta_star(q,qq) = ::rnorm(1, theta(q,qq), tau2) (0); 
+          theta_star(qq,q) = theta_star(q,qq); 
           
           // generate set z* with conditional eq (5), M times gibbs sampler
           for (k = 0; k < m; k++) {
@@ -245,7 +245,7 @@ Rcpp::List DMH(NumericVector omega,
           }
         }
       }
-    }
+    
     
     
     // === lambda update == 
