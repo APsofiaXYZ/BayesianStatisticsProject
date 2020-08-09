@@ -53,6 +53,7 @@ arma::vec conditionalZi_CPP(NumericVector z, NumericVector x, NumericVector y,
                             int iii, double c, int Q, int n) { 
   
   NumericVector brackets(Q);
+  arma::vec result;
   int q, qq, ii;
   double qqsum_theta, sum_ii, e, sumexp;
   
@@ -73,7 +74,8 @@ arma::vec conditionalZi_CPP(NumericVector z, NumericVector x, NumericVector y,
     brackets(q) = brackets(q) - qqsum_theta;
   }
   sumexp = sum(exp(brackets));
-  return {exp(brackets)/sumexp}; // 
+  result = exp(brackets)/sumexp;
+  return result; // 
 }
 
 
