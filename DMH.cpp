@@ -4,19 +4,6 @@
 // Follow the comments for explanaitions and refer to the report for the underlying theory. 
 // The functions are sourced into R and used in the runALL.R file. 
 // 
-// The code is currently not fully debugged, it stops at some point during the cycle of iterations. 
-//
-//
-
-//
-// This file contains our implementation of the Double Metropolis Hastings algorithm (Liang, 2010)
-// applied for estimation of spatial point model parameters.
-// Follow the comments for explanaitions and refer to the report for the underlying theory. 
-// The functions are sourced into R and used in the runALL.R file. 
-// 
-// The code is currently not fully debugged, it stops at some point during the cycle of iterations. 
-//
-//
 
 #include <RcppArmadillo.h>
 #include <RcppArmadilloExtensions/sample.h>
@@ -107,7 +94,7 @@ double Energy_CPP(NumericVector z, NumericVector x, NumericVector y,
       for (i = 0; i < n; i++) {                        //i
         for (ii = 0; ii < n; ii++) {                   //i'
           
-          if ((dmatrix(i,ii) <= c) && (ii>=i)) 
+          if ((dmatrix(i,ii) <= c) && (ii>=i) && (dmatrix(i,ii) > 0)) 
           { 
             e = exp(-lambda*dmatrix(i,ii));
             sum_ii = sum_ii + e*Indicator2_CPP(z(i),(q+1), z(ii),(qq+1)) ;
@@ -118,7 +105,7 @@ double Energy_CPP(NumericVector z, NumericVector x, NumericVector y,
     }
     sum_theta = sum_theta + qqsum_theta;
   }
-  return(-sum_omega - sum_theta);
+  return(sum_omega + sum_theta);
 }
 
 
@@ -126,31 +113,43 @@ double Energy_CPP(NumericVector z, NumericVector x, NumericVector y,
 // ==== DMH ===
 
 // [[Rcpp::export]]
-Rcpp::List DMH(NumericVector omega,
-               NumericMatrix theta,
-               NumericVector x, NumericVector y,
+Rcpp::List DMH(NumericVector x, NumericVector y,
                NumericVector z, arma::vec  marks,
                NumericMatrix dmatrix,
                int iter, int m, int n, int Q, double c,  
                double lambda, double mu_omega, double sigma_omega, double tau2,
-               double mu_theta, double sigma_theta, double lambda_a, double lambda_b)  {
+               double mu_theta, double sigma_theta, double lambda_a, double lambda_b,
+               NumericVector omega_start, NumericMatrix theta_start)  {
   
   double z_star = 0;
   double LogRatio = 0;
   NumericVector omega_star(Q); 
   NumericMatrix theta_star(Q,Q);
+  NumericVector omega(Q);
+  NumericMatrix theta(Q,Q);
   double la_star = 0;
-  arma::vec probabilityZi(Q); 
+  arma::vec probabilityZi(Q,arma::fill::zeros); 
   arma::mat omega_matrix(iter, Q);
-  arma::mat zstar_mat(m,n);
+  arma::mat theta_mat(iter, Q*(Q + 1)/2);
   NumericVector zstar(n); 
   NumericVector lambda_vec(iter);
   int accept_omega = 0;
   int accept_theta = 0;
   int accept_la = 0;
-  //int itercount = 0;
   double u;
-  int t, q, i, k, qq, s, f;
+  int t, q, i, k, qq, s, f, num;
+
+
+  // Start values
+  for(q = 0; q < Q; q++)
+  {
+    omega(q) = omega_start(q);
+    for(qq = 0; qq < Q; qq++)
+    {
+      theta(q, qq) = theta_start(q, qq);
+    }
+  }
+  
   
   
   // ====external DMH cycle
@@ -161,12 +160,13 @@ Rcpp::List DMH(NumericVector omega,
     // propose new omega -> omega_star vector by elements
     
     for (q = 0; q < Q-1; q++)  {                       // could be Q, but we add dfs
+      
       for (s = 0; s < Q; s++){
         omega_star(s) = omega(s);}
       for (s = 0; s < n; s++){
         zstar(s) = z(s);}
       
-      omega_star(q) = ::rnorm(1, omega(q),tau2) (0); 
+      omega_star(q) = rnorm(1, omega(q),tau2) (0); 
       
       
       // generate vector z* with conditional (5), M times gibbs sampler
@@ -176,77 +176,79 @@ Rcpp::List DMH(NumericVector omega,
           z_star = RcppArmadillo::sample(marks, 1, true, probabilityZi) (0);           //length (marks) should be = Q number
           zstar(i) = z_star;
           
-          if ( t == iter-1) {zstar_mat(k,i) = zstar(i);}
         }
       }
       
       
-      
       // calculate log of ratio, accept/reject omega_star    
-      LogRatio = Energy_CPP(zstar, x, y, omega, theta, lambda, dmatrix, c, Q, n) +
+      LogRatio = -(Energy_CPP(zstar, x, y, omega, theta, lambda, dmatrix, c, Q, n) +
         Energy_CPP(z, x, y, omega_star, theta, lambda, dmatrix, c, Q, n)+
         ((omega_star(q)-mu_omega)*(omega_star(q)-mu_omega) /2/sigma_omega/sigma_omega) -
         Energy_CPP(z, x, y, omega, theta, lambda, dmatrix, c, Q, n) -
         Energy_CPP(zstar, x, y, omega_star, theta, lambda, dmatrix, c, Q, n) -
-        ((omega(q)-mu_omega)*(omega(q)-mu_omega)/2/sigma_omega/sigma_omega);
+        ((omega(q)-mu_omega)*(omega(q)-mu_omega)/2/sigma_omega/sigma_omega));
       
       // no accept_prob = min(1, ratio) as not nessesary 
-      u = arma::randu();
-      if (log(u) < LogRatio) {
+      u = arma::randu();;
+      if (log(u) <= LogRatio) {
         omega(q) = omega_star(q);
-        omega_matrix(t,q) = omega_star(q);
-        accept_omega = accept_omega + 1;
+        accept_omega = accept_omega + 1; 
       }
-      else { omega_matrix(t,q) = omega(q); }
-        
+      omega_matrix(t, q) = omega(q);
     }
     
     
     
     // === theta update == 
     // propose new theta -> theta_star matrix by elements  
-    
+    num = 0;
     for (q = 0; q < Q-1; q++)  {                     // could be Q, but we add dfs
       for (qq = q; qq < Q; qq++) {
-             
-          for (s = 0; s < Q; s++)   {
-            for (f = 0; f < Q; f++) {
-              theta_star(s,f) = theta(s,f); 
-              }
-              }
-          
-          for (s = 0; s < n; s++){
-            zstar(s) = z(s);}
-          
-          theta_star(q,qq) = ::rnorm(1, theta(q,qq), tau2) (0); 
-          theta_star(qq,q) = theta_star(q,qq); 
-          
-          // generate set z* with conditional eq (5), M times gibbs sampler
-          for (k = 0; k < m; k++) {
-            for (i = 0; i < n; i++) {
-              probabilityZi = conditionalZi_CPP(zstar, x, y, omega, theta_star, lambda, dmatrix, i, c, Q, n);
-              z_star = RcppArmadillo::sample(marks, 1, true, probabilityZi) (0);      //length (marks) should be = Q number
-              zstar(i) = z_star;
-            }
-          }
-          
-          // calculate log of ratio, accept/reject theta_star    
-          LogRatio = Energy_CPP(zstar, x, y, omega, theta, lambda, dmatrix, c, Q, n) +
-            Energy_CPP(z, x, y, omega, theta_star, lambda, dmatrix, c, Q, n)+
-            ((theta_star(q,qq)-mu_theta)*(theta_star(q,qq)-mu_theta)/2/sigma_theta/sigma_theta) -
-            Energy_CPP(z, x, y, omega, theta, lambda, dmatrix, c, Q, n) -
-            Energy_CPP(zstar, x, y, omega, theta_star, lambda, dmatrix, c, Q, n) -
-            ((theta(q,qq)-mu_theta)*(theta(q,qq)-mu_theta) /2/sigma_theta/sigma_theta);
-          
-          // no accept_prob 
-          u = arma::randu();
-          if (log(u) < LogRatio) {
-            theta(q,qq) = theta_star(q,qq);
-            theta(qq,q) = theta_star(q,qq); // symmetrical
-            accept_theta = accept_theta + 1;
+        
+        for (s = 0; s < Q; s++)   {
+          for (f = 0; f < Q; f++) {
+            theta_star(s,f) = theta(s,f); 
           }
         }
+        for (s = 0; s < n; s++){
+          zstar(s) = z(s);}
+        
+        do { 
+          theta_star(q,qq) = rnorm(1, theta(q,qq), tau2) (0); 
+          theta_star(qq,q) = theta_star(q,qq); 
+        } while (theta_star(q,qq)>100);
+        
+        
+        // generate set z* with conditional eq (5), M times gibbs sampler
+        for (k = 0; k < m; k++) {
+          for (i = 0; i < n; i++) {
+            probabilityZi = conditionalZi_CPP(zstar, x, y, omega, theta_star, lambda, dmatrix, i, c, Q, n);
+            z_star = RcppArmadillo::sample(marks, 1, true, probabilityZi) (0);      //length (marks) should be = Q number
+            zstar(i) = z_star;
+          }
+        }
+        
+        // calculate log of ratio, accept/reject theta_star    
+        LogRatio = -(Energy_CPP(zstar, x, y, omega, theta, lambda, dmatrix, c, Q, n) +
+          Energy_CPP(z, x, y, omega, theta_star, lambda, dmatrix, c, Q, n)+
+          ((theta_star(q,qq)-mu_theta)*(theta_star(q,qq)-mu_theta)/2/sigma_theta/sigma_theta) -
+          Energy_CPP(z, x, y, omega, theta, lambda, dmatrix, c, Q, n) -
+          Energy_CPP(zstar, x, y, omega, theta_star, lambda, dmatrix, c, Q, n) -
+          ((theta(q,qq)-mu_theta)*(theta(q,qq)-mu_theta) /2/sigma_theta/sigma_theta));
+        
+        
+        // no accept_prob 
+        u = arma::randu();
+        if (log(u) <= LogRatio) {
+          theta(q,qq) = theta_star(q,qq);
+          theta(qq,q) = theta_star(q,qq); // symmetrical
+          accept_theta = accept_theta + 1;
+        }
+        theta_mat(t, num) = theta(q, qq);
+        num++;
+        
       }
+    }
     
     
     
@@ -256,36 +258,36 @@ Rcpp::List DMH(NumericVector omega,
     la_star = lambda; 
     for (s = 0; s < n; s++){
       zstar(s) = z(s);}
-    do { 
-      la_star = rnorm(1, lambda,0.05) (0);
-    } while ( la_star<=0);
-    
+    do {
+      la_star = rgamma(1, lambda*lambda/10000, 10000/lambda)(0);
+    } while (la_star<0.1);
+
     // generate vector z* with conditional (5), M times gibbs sampler
     for (k = 0; k < m; k++) {
       for (i = 0; i < n; i++) {
         probabilityZi = conditionalZi_CPP(zstar, x, y, omega, theta, la_star, dmatrix, i, c, Q, n);
-        z_star = RcppArmadillo::sample(marks, 1, true, probabilityZi) (0); 
+        
+        z_star = RcppArmadillo::sample(marks, 1, true, probabilityZi) (0);
         //length (marks) should be = Q number
         zstar(i) = z_star;
       }
     }
-    
-    // calculate log of ratio, accept/reject la_star    
-    LogRatio = Energy_CPP(zstar, x, y, omega, theta, lambda, dmatrix, c, Q, n) +
-      Energy_CPP(z, x, y, omega, theta, la_star, dmatrix, c, Q, n)+
-      (lambda_a - 1)*(log(la_star) - log(lambda)) + lambda_b*(la_star - lambda) -
+
+    // calculate log of ratio, accept/reject la_star
+    LogRatio = -(Energy_CPP(zstar, x, y, omega, theta, lambda, dmatrix, c, Q, n) +
+      Energy_CPP(z, x, y, omega, theta, la_star, dmatrix, c, Q, n) -
       Energy_CPP(z, x, y, omega, theta, lambda, dmatrix, c, Q, n)-
-      Energy_CPP(zstar, x, y, omega, theta, la_star, dmatrix, c, Q, n);
-    
-    // no accept_prob 
+      Energy_CPP(zstar, x, y, omega, theta, la_star, dmatrix, c, Q, n)) +
+      (lambda_a - 1)*(log(la_star) - log(lambda)) - lambda_b*(la_star - lambda);
+
+    // no accept_prob
     u = arma::randu();
-    if (log(u) < LogRatio) {
+    if (log(u) <= LogRatio) {
       lambda = la_star;
-      lambda_vec(t) = la_star;
       accept_la = accept_la + 1;
     }
-    else { lambda_vec(t) = lambda; }
-    
+
+    lambda_vec(t) = lambda;
     
     // ========= iter report
     
@@ -296,10 +298,14 @@ Rcpp::List DMH(NumericVector omega,
   
   return Rcpp::List::create(Rcpp::Named("omega_matrix") = omega_matrix, 
                             Rcpp::Named("t") = t,
-                            Rcpp::Named("theta_matrix") = theta,
+                            //Rcpp::Named("urat") = urat,
+                            //Rcpp::Named("lograt") = lograt,
+                            Rcpp::Named("theta_matrix") = theta_mat,
                             Rcpp::Named("lambda_vec") = lambda_vec,
                             Rcpp::Named("accept_omega") = accept_omega,
                             Rcpp::Named("accept_theta") = accept_theta,
-                            Rcpp::Named("accept_lambda") = accept_la,
-                            Rcpp::Named("zstar_mat") = zstar_mat);
+                            Rcpp::Named("accept_lambda") = accept_la );
+                            //Rcpp::Named("lograt") = lograt,
+                            //Rcpp::Named("zstar_mat") = zstar_mat
+                           
 }
