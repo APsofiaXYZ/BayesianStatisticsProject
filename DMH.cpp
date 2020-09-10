@@ -298,14 +298,11 @@ Rcpp::List DMH(NumericVector x, NumericVector y,
   
   return Rcpp::List::create(Rcpp::Named("omega_matrix") = omega_matrix, 
                             Rcpp::Named("t") = t,
-                            //Rcpp::Named("urat") = urat,
-                            //Rcpp::Named("lograt") = lograt,
                             Rcpp::Named("theta_matrix") = theta_mat,
                             Rcpp::Named("lambda_vec") = lambda_vec,
                             Rcpp::Named("accept_omega") = accept_omega,
                             Rcpp::Named("accept_theta") = accept_theta,
                             Rcpp::Named("accept_lambda") = accept_la );
-                            //Rcpp::Named("lograt") = lograt,
-                            //Rcpp::Named("zstar_mat") = zstar_mat
+                            
                            
 }
