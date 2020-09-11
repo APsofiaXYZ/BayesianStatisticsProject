@@ -1,6 +1,6 @@
 # Bayesian Statistics Project, POLIMI.
 
-Model of cell-to-cell interaction for analysis of tumor pathology images
+A model of cell-to-cell interaction for analysis of tumor pathology images
 
 Team members: Diana Isaeva, Alexandra Pershakova, Maria Vittoria Trussoni
 
