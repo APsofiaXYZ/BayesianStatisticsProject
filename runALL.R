@@ -6,7 +6,6 @@
 # Small sample data could be found in the related repository.
 # Please install Rcpp and RcppArmadillo packages. AP.
 # The corresponding Cpp file with DMH algorithm and the functions attached.
-# The cpp code is currently not fully debugged, it stop at some point during the full cycle of iterations. 
 
 ############
 
